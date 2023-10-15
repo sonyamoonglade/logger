@@ -8,29 +8,33 @@ import (
 )
 
 var (
-	globalLogger  *zap.Logger
+	globalLogger  *zap.SugaredLogger
 	defaultConfig = Config{
-		Strict:           false,
-		Production:       false,
-		EnableStacktrace: true,
+		Strict:     false,
+		Production: false,
 	}
 	// Maps name to logger
-	namedLoggersCache = make(map[string]*zap.Logger)
+	namedLoggersCache = make(map[string]*zap.SugaredLogger)
 	mu                sync.RWMutex
 )
 
+const (
+	EncodingConsole = "console"
+	EncodingJSON    = "json"
+)
+
 type Config struct {
-	Out              []string
-	Strict           bool
-	Production       bool
-	EnableStacktrace bool
+	Out        []string
+	Strict     bool
+	Production bool
 }
 
 func NewLogger(cfg Config) error {
 	builder := zap.NewProductionConfig()
-	builder.DisableStacktrace = !cfg.EnableStacktrace
+	builder.DisableStacktrace = true
+	builder.DisableCaller = false
 	builder.Development = false
-	builder.Encoding = "console"
+	builder.Encoding = EncodingConsole
 
 	builder.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	if cfg.Strict {
@@ -39,8 +43,7 @@ func NewLogger(cfg Config) error {
 
 	if cfg.Production {
 		builder.OutputPaths = cfg.Out
-		builder.Encoding = "json"
-		builder.DisableCaller = true
+		builder.Encoding = EncodingJSON
 	}
 
 	builder.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
@@ -50,11 +53,11 @@ func NewLogger(cfg Config) error {
 		return err
 	}
 
-	globalLogger = logger
+	globalLogger = logger.Sugar()
 	return nil
 }
 
-func Get() *zap.Logger {
+func Get() *zap.SugaredLogger {
 	if globalLogger == nil {
 		if err := NewLogger(defaultConfig); err != nil {
 			panic(err)
@@ -63,7 +66,7 @@ func Get() *zap.Logger {
 	return globalLogger
 }
 
-func Named(name string) *zap.Logger {
+func Named(name string) *zap.SugaredLogger {
 	if globalLogger == nil {
 		if err := NewLogger(defaultConfig); err != nil {
 			panic(err)
